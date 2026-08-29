@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rental-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: cdac
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysqldata:/var/lib/mysql
+    networks:
+      - rental-net
+
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: rental-eureka
+    ports:
+      - "8761:8761"
+    networks:
+      - rental-net
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: rental-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=cdac
+      - EUREKA_HOST=eureka-server
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - rental-net
+
+  vehicle-service:
+    build:
+      context: ./vehicle-service
+      dockerfile: Dockerfile
+    container_name: rental-vehicle-service
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=cdac
+      - EUREKA_HOST=eureka-server
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - rental-net
+
+  booking-service:
+    build:
+      context: ./booking-service
+      dockerfile: Dockerfile
+    container_name: rental-booking-service
+    ports:
+      - "8083:8083"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=cdac
+      - EUREKA_HOST=eureka-server
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - rental-net
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: rental-payment-service
+    ports:
+      - "8084:8084"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASSWORD=cdac
+      - EUREKA_HOST=eureka-server
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - rental-net
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: rental-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_HOST=eureka-server
+    depends_on:
+      - eureka-server
+    networks:
+      - rental-net
+
+volumes:
+  mysqldata:
+
+networks:
+  rental-net:
+    driver: bridge

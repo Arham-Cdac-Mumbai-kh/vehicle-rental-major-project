@@ -1,0 +1,24 @@
+# Compiled Java classes & logs
+**/target/
+**/*.class
+**/*.log
+
+# Node & Frontend dependencies
+**/node_modules/
+**/dist/
+**/build/
+.eslintcache
+
+# IDE specific files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Docker volumes / local data
+**/mysqldata/

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  font-size: 19px; /* Increases all Tailwind rem-based font sizes globally */
+}
+
+body {
+  font-size: 1rem;
+}
+
+/* Globally scale up the tiny font-size classes to make them readable */
+.text-xs {
+  font-size: 0.85rem !important;
+}
+
+.text-\[10px\] {
+  font-size: 0.78rem !important;
+}
+
+.text-\[11px\] {
+  font-size: 0.82rem !important;
+}
+
+.text-sm {
+  font-size: 0.95rem !important;
+}
