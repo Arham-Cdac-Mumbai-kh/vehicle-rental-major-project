@@ -96,6 +96,8 @@ services:
       - DB_USER=root
       - DB_PASSWORD=cdac
       - EUREKA_HOST=eureka-server
+      - RAZORPAY_KEY_ID=rzp_test_ThSNqcmLl4lwwN
+      - RAZORPAY_KEY_SECRET=tcnKiLusawJfT4ZGI3A6vEvH
     depends_on:
       - mysql
       - eureka-server

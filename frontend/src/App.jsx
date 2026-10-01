@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Car, User as UserIcon, Calendar, DollarSign, Search, Plus, Check, X, Shield, 
-  ArrowRight, ShieldCheck, LogOut, History, TrendingUp, Layers, MapPin, Tag, RefreshCw
+  ArrowRight, ShieldCheck, LogOut, History, TrendingUp, Layers, MapPin, Tag, RefreshCw, CreditCard
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
@@ -331,6 +331,101 @@ export default function App() {
       setSelectedVehicle(null);
     } catch (err) {
       setBookingError(err.response?.data?.message || 'Failed to request booking.');
+    }
+  };
+
+  // Helper to dynamically load Razorpay script
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  // Handler: Process Razorpay Payment
+  const handleRazorpayPayment = async () => {
+    if (!paymentPendingBooking) return;
+    setProcessingPayment(true);
+
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded || !window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
+      }
+
+      // 1. Create order on backend payment-service
+      const orderRes = await api.post('/api/payments/create-order', {
+        bookingId: paymentPendingBooking.id,
+        amount: paymentPendingBooking.totalAmount
+      });
+
+      const orderData = orderRes.data;
+
+      // 2. Open Razorpay Checkout Modal
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount, // in paise
+        currency: orderData.currency || 'INR',
+        name: 'DriveP2P Rentals',
+        description: `Booking #${paymentPendingBooking.id} Payment`,
+        order_id: orderData.orderId,
+        handler: async function (response) {
+          try {
+            // 3. Verify Payment Signature on backend
+            await api.post('/api/payments/verify-payment', {
+              bookingId: paymentPendingBooking.id,
+              amount: paymentPendingBooking.totalAmount,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature
+            });
+
+            showNotification(`Payment successful via Razorpay! (Txn ID: ${response.razorpay_payment_id})`);
+            setPaymentPendingBooking(null);
+            fetchRenterBookings();
+          } catch (verifyErr) {
+            console.error("Verification failed", verifyErr);
+            showNotification(verifyErr.response?.data?.message || 'Payment verification failed. Please contact support.');
+          } finally {
+            setProcessingPayment(false);
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+          contact: user?.phone || ''
+        },
+        notes: {
+          bookingId: String(paymentPendingBooking.id)
+        },
+        theme: {
+          color: '#4f46e5'
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessingPayment(false);
+          }
+        }
+      };
+
+      const rzpInstance = new window.Razorpay(options);
+      rzpInstance.on('payment.failed', function (resp) {
+        console.error("Razorpay payment failed:", resp.error);
+        showNotification('Payment failed: ' + (resp.error.description || 'Transaction declined.'));
+        setProcessingPayment(false);
+      });
+      rzpInstance.open();
+    } catch (err) {
+      console.error("Razorpay initiation failed", err);
+      showNotification(err.response?.data?.message || err.message || 'Failed to initiate Razorpay checkout.');
+      setProcessingPayment(false);
     }
   };
 
@@ -994,51 +1089,79 @@ export default function App() {
               </div>
             )}
 
-            {/* MODAL: Booking Payment Simulation */}
+            {/* MODAL: Booking Payment - Razorpay Gateway */}
             {paymentPendingBooking && (
-              <div className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6 animate-scale-up">
+              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="w-full max-w-md bg-slate-900 border border-slate-750 rounded-2xl p-6 shadow-2xl space-y-5 animate-scale-up relative overflow-hidden">
+                  {/* Top glowing accent bar */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500"></div>
+
                   <div className="flex flex-col items-center text-center">
-                    <div className="h-12 w-12 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20 mb-3">
-                      <DollarSign className="h-6 w-6 text-indigo-400 animate-pulse" />
+                    <div className="h-14 w-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 mb-3 shadow-inner">
+                      <CreditCard className="h-7 w-7 text-indigo-400" />
                     </div>
-                    <h3 className="text-lg font-bold">Process Simulated Payment</h3>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold tracking-wide uppercase mb-1">
+                      Razorpay Test Mode
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-100">Complete Booking Payment</h3>
                     <p className="text-xs text-slate-400 max-w-xs mt-1">
-                      No real payment information required. This simulates checkout processing for demonstration.
+                      Pay securely with UPI, Credit/Debit Cards, NetBanking, or Wallets.
                     </p>
                   </div>
 
                   {/* Calculations */}
-                  <div className="bg-slate-950/60 rounded-xl p-4 border border-slate-850 space-y-3">
+                  <div className="bg-slate-950/70 rounded-xl p-4 border border-slate-800 space-y-2.5">
                     <div className="flex justify-between text-xs text-slate-400">
-                      <span>Total Amount:</span>
-                      <span className="font-bold text-slate-200">₹{paymentPendingBooking.totalAmount}</span>
+                      <span>Vehicle Rental Total:</span>
+                      <span className="font-bold text-slate-200 text-sm">₹{paymentPendingBooking.totalAmount}</span>
                     </div>
                     <div className="flex justify-between text-xs text-slate-400">
-                      <span>Platform Commission (10%):</span>
+                      <span>Platform Fee (10%):</span>
                       <span className="text-slate-300">₹{(paymentPendingBooking.totalAmount * 0.1).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-xs text-slate-400 border-t border-slate-800 pt-2">
-                      <span>Owner share:</span>
+                    <div className="flex justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-2">
+                      <span>Owner Payout (90%):</span>
                       <span className="text-emerald-400 font-bold">₹{(paymentPendingBooking.totalAmount * 0.9).toFixed(2)}</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Supported payment badges */}
+                  <div className="flex items-center justify-center gap-2 text-[10px] text-slate-400 bg-slate-850/60 py-2 px-3 rounded-lg border border-slate-800">
+                    <span className="font-medium text-slate-300">Accepted:</span>
+                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">UPI</span>
+                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Cards</span>
+                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">NetBanking</span>
+                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">Wallets</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2.5 pt-1">
                     <button
-                      onClick={() => setPaymentPendingBooking(null)}
+                      onClick={handleRazorpayPayment}
                       disabled={processingPayment}
-                      className="py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-slate-100 font-semibold rounded-lg text-xs transition-colors cursor-pointer border-0"
+                      className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 cursor-pointer border-0 disabled:opacity-50"
                     >
-                      Cancel
+                      <CreditCard className="h-4 w-4" />
+                      {processingPayment ? 'Processing...' : `Pay ₹${paymentPendingBooking.totalAmount} with Razorpay`}
                     </button>
-                    <button
-                      onClick={handleSimulatePayment}
-                      disabled={processingPayment}
-                      className="py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer border-0 flex items-center justify-center gap-1.5"
-                    >
-                      {processingPayment ? 'Processing...' : 'Pay Simulated ₹' + paymentPendingBooking.totalAmount}
-                    </button>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => setPaymentPendingBooking(null)}
+                        disabled={processingPayment}
+                        className="py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-slate-100 font-medium rounded-lg text-xs transition-colors cursor-pointer border-0"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSimulatePayment}
+                        disabled={processingPayment}
+                        title="Simulate payment instantly without opening Razorpay"
+                        className="py-2 bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200 font-medium rounded-lg text-xs transition-colors cursor-pointer border border-slate-750"
+                      >
+                        Simulate Mock
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
