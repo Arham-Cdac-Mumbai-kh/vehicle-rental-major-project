@@ -9,6 +9,7 @@ import com.vehiclerental.user_service.repository.OtpVerificationRepository;
 import com.vehiclerental.user_service.service.EmailService;
 import com.vehiclerental.user_service.security.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;

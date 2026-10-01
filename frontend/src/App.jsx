@@ -5,7 +5,7 @@ import {
   ArrowRight, ShieldCheck, LogOut, History, TrendingUp, Layers, MapPin, Tag, RefreshCw
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8080';
+const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 // Setup axios instance
 const api = axios.create({

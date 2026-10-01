@@ -4,6 +4,7 @@ services:
   mysql:
     image: mysql:8.0
     container_name: rental-mysql
+    command: --innodb_buffer_pool_size=128M --key_buffer_size=16M --max_connections=50
     environment:
       MYSQL_ROOT_PASSWORD: cdac
     ports:
@@ -19,6 +20,7 @@ services:
       context: ./eureka-server
       dockerfile: Dockerfile
     container_name: rental-eureka
+    entrypoint: ["java", "-Xmx96m", "-Xms96m", "-jar", "app.jar"]
     ports:
       - "8761:8761"
     networks:
@@ -29,6 +31,7 @@ services:
       context: ./user-service
       dockerfile: Dockerfile
     container_name: rental-user-service
+    entrypoint: ["java", "-Xmx96m", "-Xms96m", "-jar", "app.jar"]
     ports:
       - "8081:8081"
     environment:
@@ -47,6 +50,7 @@ services:
       context: ./vehicle-service
       dockerfile: Dockerfile
     container_name: rental-vehicle-service
+    entrypoint: ["java", "-Xmx96m", "-Xms96m", "-jar", "app.jar"]
     ports:
       - "8082:8082"
     environment:
@@ -65,6 +69,7 @@ services:
       context: ./booking-service
       dockerfile: Dockerfile
     container_name: rental-booking-service
+    entrypoint: ["java", "-Xmx96m", "-Xms96m", "-jar", "app.jar"]
     ports:
       - "8083:8083"
     environment:
@@ -83,6 +88,7 @@ services:
       context: ./payment-service
       dockerfile: Dockerfile
     container_name: rental-payment-service
+    entrypoint: ["java", "-Xmx96m", "-Xms96m", "-jar", "app.jar"]
     ports:
       - "8084:8084"
     environment:
@@ -101,12 +107,26 @@ services:
       context: ./api-gateway
       dockerfile: Dockerfile
     container_name: rental-api-gateway
+    entrypoint: ["java", "-Xmx96m", "-Xms96m", "-jar", "app.jar"]
     ports:
       - "8080:8080"
     environment:
       - EUREKA_HOST=eureka-server
     depends_on:
       - eureka-server
+    networks:
+      - rental-net
+
+  frontend:
+    image: nginx:alpine
+    container_name: rental-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api-gateway
     networks:
       - rental-net
 
